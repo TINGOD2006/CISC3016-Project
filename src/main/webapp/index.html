@@ -742,7 +742,7 @@
         }
         
         // ========== 5. 拼字檢查功能 ==========
-        async function checkSpelling() {
+    async function checkSpelling() {
     const word = document.getElementById('spellWord').value.trim();
     const resultDiv = document.getElementById('spellResult');
     
@@ -755,44 +755,104 @@
     resultDiv.className = 'spellcheck-result show';
     resultDiv.innerHTML = '<div class="spinner" style="width:25px;height:25px;"></div><p style="margin-top: 8px;">正在查詢字典...</p>';
     
+    // 內建單字庫（離線備用）
+    const wordDictionary = {
+        "hello": "用於打招呼或引起注意",
+        "world": "地球、世界、人類社會",
+        "java": "一種程式設計語言",
+        "python": "一種程式設計語言或蟒蛇",
+        "javascript": "網頁程式設計語言",
+        "html": "網頁標記語言",
+        "css": "網頁樣式表語言",
+        "programming": "程式設計",
+        "computer": "電腦",
+        "internet": "網際網路",
+        "web": "網頁、網絡",
+        "api": "應用程式介面",
+        "technology": "科技",
+        "science": "科學",
+        "apple": "蘋果公司或水果",
+        "google": "谷歌搜尋引擎",
+        "microsoft": "微軟公司",
+        "cnn": "美國有線電視新聞網",
+        "bbc": "英國廣播公司",
+        "hacker": "駭客",
+        "news": "新聞",
+        "server": "伺服器",
+        "database": "資料庫",
+        "software": "軟體",
+        "hardware": "硬體"
+    };
+    
+    const lowerWord = word.toLowerCase();
+    
+    // 檢查內建字典
+    if (wordDictionary[lowerWord]) {
+        resultDiv.className = 'spellcheck-result show result-correct';
+        resultDiv.innerHTML = `
+            <strong>✅ 拼字正確！「${escapeHtml(word)}」是有效的英文單字</strong>
+            <div class="definition" style="margin-top: 10px;">
+                <strong>📖 說明：</strong> ${wordDictionary[lowerWord]}
+            </div>
+        `;
+        return;
+    }
+    
+    // 嘗試使用線上 API
     try {
-        const response = await fetch(`./api/spellcheck?word=${encodeURIComponent(word)}`);
-        const data = await response.json();
+        // 使用 Free Dictionary API
+        const apiUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(lowerWord)}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         
-        if (data.error) {
-            resultDiv.className = 'spellcheck-result show result-error';
-            resultDiv.innerHTML = `<strong>⚠️ 錯誤：</strong> ${data.error}`;
-        } else if (data.correct) {
+        const response = await fetch(apiUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+            const data = await response.json();
+            let definition = '';
+            let partOfSpeech = '';
+            
+            if (data && data[0] && data[0].meanings && data[0].meanings[0]) {
+                const meaning = data[0].meanings[0];
+                partOfSpeech = meaning.partOfSpeech || '';
+                if (meaning.definitions && meaning.definitions[0]) {
+                    definition = meaning.definitions[0].definition;
+                }
+            }
+            
             resultDiv.className = 'spellcheck-result show result-correct';
-            let html = `<strong>✅ ${data.message}</strong>`;S
-            if (data.phonetic) {
-                html += `<div style="margin-top: 8px;"><strong>🔊 發音：</strong> ${data.phonetic}</div>`;
+            let html = `<strong>✅ 拼字正確！「${escapeHtml(word)}」是有效的英文單字</strong>`;
+            if (partOfSpeech) {
+                html += `<div style="margin-top: 5px;"><strong>📚 詞性：</strong> ${partOfSpeech}</div>`;
             }
-            if (data.partOfSpeech) {
-                html += `<div style="margin-top: 8px;"><strong>📚 詞性：</strong> ${data.partOfSpeech}</div>`;
-            }
-            if (data.definition) {
-                html += `<div class="definition"><strong>📖 定義：</strong> ${data.definition}</div>`;
+            if (definition) {
+                html += `<div class="definition" style="margin-top: 8px;"><strong>📖 定義：</strong> ${definition}</div>`;
             }
             resultDiv.innerHTML = html;
-        } else {
-            resultDiv.className = 'spellcheck-result show result-incorrect';
-            let html = `<strong>❌ ${data.message}</strong>`;
-            if (data.suggestions && data.suggestions.length > 0) {
-                html += `<div class="suggestions-list"><strong>💡 你可能想查：</strong><ul>`;
-                data.suggestions.forEach(sug => {
-                    html += `<li>${escapeHtml(sug)}</li>`;
-                });
-                html += `</ul></div>`;
-            } else {
-                html += `<div style="margin-top: 10px;">💡 試試看：hello, world, java, python, javascript</div>`;
-            }
-            resultDiv.innerHTML = html;
+            return;
         }
     } catch (error) {
-        console.error('拼字檢查失敗:', error);
-        resultDiv.className = 'spellcheck-result show result-error';
-        resultDiv.innerHTML = '<strong>⚠️ 無法連線到字典服務</strong><br>請檢查網路連線後重試';
+        console.log('線上 API 無法連線，使用本地建議功能');
+    }
+    
+    // 如果線上 API 失敗，提供本地拼字建議
+    const commonWords = Object.keys(wordDictionary);
+    const suggestions = commonWords.filter(w => w.startsWith(lowerWord.substring(0, Math.min(2, lowerWord.length))));
+    
+    if (suggestions.length > 0) {
+        let html = `<strong>❌ 找不到「${escapeHtml(word)}」</strong>`;
+        html += `<div class="suggestions-list" style="margin-top: 10px;"><strong>💡 您是不是想查：</strong><ul style="margin-top: 5px; margin-left: 20px;">`;
+        suggestions.slice(0, 5).forEach(sug => {
+            html += `<li>${escapeHtml(sug)} - ${wordDictionary[sug]}</li>`;
+        });
+        html += `</ul></div>`;
+        resultDiv.className = 'spellcheck-result show result-incorrect';
+        resultDiv.innerHTML = html;
+    } else {
+        resultDiv.className = 'spellcheck-result show result-incorrect';
+        resultDiv.innerHTML = `<strong>❌ 找不到「${escapeHtml(word)}」</strong>
+            <div style="margin-top: 10px;">💡 試試看：hello, world, java, python, javascript, html, css</div>`;
     }
 }
         
