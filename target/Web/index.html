@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>即時新聞聚合器 | Hacker News · CNN · BBC</title>
+    <style>
+        /* ========== 全域設定 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* ========== 頁首 Header ========== */
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px 35px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s;
+        }
+        
+        header:hover {
+            transform: translateY(-2px);
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 0.7rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            vertical-align: middle;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        
+        /* ========== 來源標籤 ========== */
+        .source-tags {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .source-tag {
+            background: #f0f0f0;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #555;
+        }
+        
+        .source-tag.hn { background: #ff6600; color: white; }
+        .source-tag.cnn { background: #cc0000; color: white; }
+        .source-tag.bbc { background: #000000; color: white; }
+        
+        /* ========== 音樂控制區 ========== */
+        .music-control {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .sound-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+        }
+        
+        .sound-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .music-status {
+            font-size: 13px;
+            color: #666;
+            background: #f0f0f0;
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+        
+        /* ========== 即時評論區 ========== */
+        .comment-box {
+            background: linear-gradient(135deg, #e8f4f8, #d1ecf1);
+            border-left: 5px solid #667eea;
+            padding: 18px 25px;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            animation: fadeInUp 0.5s ease;
+        }
+        
+        .comment-box h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .comment-text {
+            font-size: 1.05rem;
+            color: #2c3e50;
+            line-height: 1.5;
+        }
+        
+        /* ========== 新聞網格 ========== */
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .news-card {
+            background: white;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .news-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* ========== 圖片容器 + 縮放功能 ========== */
+        .image-container {
+            position: relative;
+            overflow: hidden;
+            height: 220px;
+            background: #f5f5f5;
+            cursor: pointer;
+        }
+        
+        .news-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 滑鼠懸停放大 */
+        .image-container:hover .news-image {
+            transform: scale(1.12);
+        }
+        
+        /* 點擊後放大（由 JavaScript 控制） */
+        .image-container.zoomed .news-image {
+            transform: scale(1.35);
+        }
+        
+        /* 圖片來源標籤 */
+        .image-source {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            pointer-events: none;
+        }
+        
+        .news-content {
+            padding: 20px;
+        }
+        
+        .news-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        
+        .news-title a {
+            color: #2c3e50;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .news-title a:hover {
+            color: #667eea;
+        }
+        
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .news-source {
+            color: #667eea;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: #f0e6ff;
+            padding: 4px 10px;
+            border-radius: 15px;
+            display: inline-block;
+        }
+        
+        .news-summary {
+            color: #666;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            margin-top: 10px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .news-score {
+            color: #f39c12;
+            font-size: 0.75rem;
+            background: #fff3e0;
+            padding: 4px 10px;
+            border-radius: 15px;
+        }
+        
+        .live-badge {
+            display: inline-block;
+            background: #e74c3c;
+            color: white;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 12px;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        /* ========== 拼字檢查區 ========== */
+        .spellcheck-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .spellcheck-section h3 {
+            color: #333;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .spellcheck-section p {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+        
+        .spellcheck-form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .spellcheck-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 14px 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 30px;
+            font-size: 16px;
+            transition: all 0.3s;
+            outline: none;
+        }
+        
+        .spellcheck-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .spellcheck-btn {
+            padding: 14px 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .spellcheck-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .spellcheck-result {
+            margin-top: 20px;
+            padding: 16px 20px;
+            border-radius: 14px;
+            display: none;
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        .spellcheck-result.show {
+            display: block;
+        }
+        
+        .result-correct {
+            background: #d4edda;
+            border-left: 5px solid #28a745;
+            color: #155724;
+        }
+        
+        .result-incorrect {
+            background: #f8d7da;
+            border-left: 5px solid #dc3545;
+            color: #721c24;
+        }
+        
+        .result-error {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            color: #856404;
+        }
+        
+        /* ========== 載入動畫 ========== */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 20px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* ========== 底部資訊 ========== */
+        .footer-info {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.8rem;
+        }
+        
+        .timestamp {
+            background: rgba(0, 0, 0, 0.2);
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            padding: 6px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            margin-left: 12px;
+            transition: all 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* ========== 響應式設計 ========== */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+            
+            h1 {
+                font-size: 1.3rem;
+            }
+            
+            .news-grid {
+                grid-template-columns: 1fr;
+                gap: 18px;
+            }
+            
+            .image-container {
+                height: 180px;
+            }
+            
+            header {
+                padding: 18px 20px;
+            }
+            
+            .spellcheck-section {
+                padding: 20px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .news-title {
+                font-size: 0.95rem;
+            }
+            
+            .spellcheck-form {
+                flex-direction: column;
+            }
+            
+            .spellcheck-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 頁首 Header -->
+        <header>
+            <h1>
+                CISI 3016 Project DC425290 DC425052
+                <span class="badge">即時爬蟲</span>
+            </h1>
+            <p class="subtitle">
+                即時從 Hacker News、CNN、BBC 爬取
+            </p>
+            <div class="source-tags">
+                <span class="source-tag hn">Hacker News</span>
+                <span class="source-tag cnn">CNN</span>
+                <span class="source-tag bbc">BBC</span>
+            </div>
+            
+            <!-- 音樂控制區 -->
+            <div class="music-control">
+                <button class="sound-btn" id="playSoundBtn">🎵 播放背景音樂</button>
+                <span class="music-status" id="musicStatus">⏸ 未播放</span>
+                <span style="font-size: 12px; color: #999;">✨ 點擊按鈕播放/暫停</span>
+            </div>
+            <audio id="bgAudio" preload="auto" loop>
+                 <source src="sound1.mp3" type="audio/mpeg">
+            </audio>
+        </header>
+        
+        <!-- AI 即時評論區 -->
+        <div class="comment-box" id="commentBox">
+            <h3>
+                <span>🤖 AI 即時分析</span>
+                <span style="font-size: 11px; background: #c8e0e8; padding: 2px 8px; border-radius: 12px;">基於即時內容生成</span>
+            </h3>
+            <div class="comment-text" id="randomComment">
+                <span class="spinner" style="width:20px;height:20px;display:inline-block;margin:0 10px 0 0;vertical-align:middle;"></span>
+                正在分析最新科技新聞...
+            </div>
+        </div>
+        
+        <!-- 新聞網格 -->
+        <div class="news-grid" id="newsGrid">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>🔄 正在從 Hacker News、CNN、BBC 爬取即時新聞...</p>
+                <p style="font-size: 13px; color: #888; margin-top: 10px;">📡 資料來源：Hacker News API | CNN RSS | BBC RSS</p>
+            </div>
+        </div>
+        
+        <!-- 拼字檢查區 -->
+        <div class="spellcheck-section">
+            <h3>
+                📝 線上拼字檢查
+                <span style="font-size: 11px; background: #e8f4f8; padding: 2px 8px; border-radius: 12px;">Powered by Free Dictionary API</span>
+            </h3>
+            <p>輸入英文單字，使用線上免費字典驗證拼字與查詢定義</p>
+            <div class="spellcheck-form">
+                <input type="text" id="spellWord" class="spellcheck-input" placeholder="請輸入英文單字，例如：hacker, cnn, bbc, technology...">
+                <button id="checkSpellingBtn" class="spellcheck-btn">🔍 檢查拼字</button>
+            </div>
+            <div id="spellResult" class="spellcheck-result"></div>
+        </div>
+        
+        <!-- 底部資訊 -->
+        <div class="footer-info">
+            <div class="timestamp" id="timestamp">
+                📡 等待連接後端伺服器...
+            </div>
+            <button class="refresh-btn" id="manualRefreshBtn">🔄 手動刷新新聞</button>
+        </div>
+    </div>
+    
+    <script>
+        // ========== 全域變數 ==========
+        let isPlaying = false;
+        let autoRefreshInterval = null;
+        let isLoading = false;
+        
+        const fallbackComments = [
+            "🔥 Hacker News 今日熱門討論出爐！",
+            "📈 CNN 科技最新報導值得關注！",
+            "💡 BBC 新聞帶來國際科技視野！",
+            "🌍 三大科技媒體即時動態整理！",
+            "🎯 人工智慧、太空科技、新創公司焦點！"
+        ];
+        
+        // ========== DOM 元素 ==========
+        const audio = document.getElementById('bgAudio');
+        const playBtn = document.getElementById('playSoundBtn');
+        const musicStatus = document.getElementById('musicStatus');
+        const newsGrid = document.getElementById('newsGrid');
+        const randomCommentDiv = document.getElementById('randomComment');
+        const timestampDiv = document.getElementById('timestamp');
+        
+        // ========== 1. 新聞抓取功能 ==========
+        async function fetchLiveNews() {
+            if (isLoading) {
+                console.log('已在載入中，跳過');
+                return;
+            }
+            
+            isLoading = true;
+            
+            newsGrid.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>🔄 正在從 Hacker News、CNN、BBC 爬取即時新聞...</p>
+                    <p style="font-size: 13px; color: #888; margin-top: 10px;">
+                        📡 資料來源：Hacker News API | CNN RSS | BBC RSS
+                    </p>
+                </div>
+            `;
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch('./api/news', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const endTime = Date.now();
+                
+                console.log('資料接收成功:', data);
+                console.log(`載入耗時: ${endTime - startTime}ms`);
+                
+                if (data.randomComment) {
+                    randomCommentDiv.innerHTML = `
+                        <span style="font-size: 1.2rem; margin-right: 8px;">💬</span>
+                        ${escapeHtml(data.randomComment)}
+                        <span style="display: block; font-size: 11px; margin-top: 8px; opacity: 0.7;">
+                            🤖 基於即時爬取內容生成
+                        </span>
+                    `;
+                } else {
+                    const randomIndex = Math.floor(Math.random() * fallbackComments.length);
+                    randomCommentDiv.innerHTML = fallbackComments[randomIndex];
+                }
+                
+                if (data.timestamp) {
+                    const fetchDate = new Date(data.timestamp);
+                    timestampDiv.innerHTML = `
+                        📅 即時資料 | 更新時間: ${fetchDate.toLocaleString('zh-TW')}
+                        <span style="margin-left: 10px;">⚡ 載入耗時: ${endTime - startTime}ms</span>
+                        <span style="margin-left: 10px;">📰 共 ${data.news ? data.news.length : 0} 則新聞</span>
+                    `;
+                }
+                
+                if (data.news && data.news.length > 0) {
+                    renderNews(data.news);
+                } else {
+                    newsGrid.innerHTML = `
+                        <div class="loading">
+                            <p style="color: #e74c3c;">⚠️ 暫時無法獲取新聞</p>
+                            <button onclick="fetchLiveNews()" style="margin-top: 15px; padding: 8px 20px; border-radius: 20px; border: none; background: #667eea; color: white; cursor: pointer;">🔄 重試</button>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('載入失敗:', error);
+                newsGrid.innerHTML = `
+                    <div class="loading">
+                        <p style="color: #e74c3c;">❌ 無法連接後端伺服器</p>
+                        <p style="margin-top: 10px;">錯誤訊息: ${escapeHtml(error.message)}</p>
+                        <p style="margin-top: 10px;">請確認：</p>
+                        <ul style="text-align: left; display: inline-block; margin-top: 10px;">
+                            <li>✅ Tomcat 伺服器是否已啟動</li>
+                            <li>✅ 是否訪問正確網址: http://localhost:8080/Web/</li>
+                            <li>✅ 後端是否已成功部署</li>
+                        </ul>
+                        <div style="margin-top: 20px;">
+                            <button onclick="fetchLiveNews()" class="sound-btn" style="margin-top: 0;">🔄 重試連線</button>
+                        </div>
+                    </div>
+                `;
+                
+                randomCommentDiv.innerHTML = '⚠️ 無法連接到後端伺服器，請確認 Tomcat 已啟動';
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        // ========== 2. 渲染新聞卡片 ==========
+        function renderNews(newsItems) {
+            if (!newsItems || newsItems.length === 0) {
+                newsGrid.innerHTML = '<div class="loading"><p>📭 暫無新聞資料</p></div>';
+                return;
+            }
+            
+            newsGrid.innerHTML = newsItems.map((item, idx) => `
+                <div class="news-card">
+                    <div class="image-container" data-idx="${idx}">
+                        <img src="${item.image || 'https://picsum.photos/id/1/400/250'}" 
+                             class="news-image" 
+                             alt="新聞圖片"
+                             loading="lazy"
+                             onerror="this.src='https://picsum.photos/id/20/400/250'">
+                        <div class="image-source">📸 示意圖</div>
+                    </div>
+                    <div class="news-content">
+                        <div class="news-meta">
+                            <span class="news-source">📰 ${escapeHtml(item.source || '科技媒體')}</span>
+                            ${item.score ? `<span class="news-score">⭐ 熱度: ${item.score}</span>` : ''}
+                            <span class="live-badge" style="background: #27ae60; font-size: 10px;">即時</span>
+                        </div>
+                        <h3 class="news-title">
+                            <a href="${item.link || '#'}" target="_blank" rel="noopener noreferrer">
+                                ${escapeHtml(item.title || '無標題')}
+                            </a>
+                        </h3>
+                        ${item.summary ? `<div class="news-summary">📝 ${escapeHtml(item.summary)}</div>` : ''}
+                        <div style="font-size: 11px; color: #aaa; margin-top: 12px;">
+                            🕐 即時爬取 | 來源: ${item.source || '科技媒體'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            setupImageZoom();
+        }
+        
+        // ========== 3. 圖片縮放功能 ==========
+        function setupImageZoom() {
+            const containers = document.querySelectorAll('.image-container');
+            containers.forEach(container => {
+                container.removeEventListener('click', handleImageClick);
+                container.addEventListener('click', handleImageClick);
+            });
+        }
+        
+        function handleImageClick(event) {
+            event.stopPropagation();
+            this.classList.toggle('zoomed');
+            
+            document.querySelectorAll('.image-container').forEach(other => {
+                if (other !== this && other.classList.contains('zoomed')) {
+                    other.classList.remove('zoomed');
+                }
+            });
+        }
+        
+        // ========== 4. 防 XSS 攻擊 ==========
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ========== 5. 拼字檢查功能 ==========
+        async function checkSpelling() {
+    const word = document.getElementById('spellWord').value.trim();
+    const resultDiv = document.getElementById('spellResult');
+    
+    if (!word) {
+        resultDiv.className = 'spellcheck-result show result-error';
+        resultDiv.innerHTML = '⚠️ 請輸入要檢查的英文單字';
+        return;
+    }
+    
+    resultDiv.className = 'spellcheck-result show';
+    resultDiv.innerHTML = '<div class="spinner" style="width:25px;height:25px;"></div><p style="margin-top: 8px;">正在查詢字典...</p>';
+    
+    try {
+        const response = await fetch(`./api/spellcheck?word=${encodeURIComponent(word)}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            resultDiv.className = 'spellcheck-result show result-error';
+            resultDiv.innerHTML = `<strong>⚠️ 錯誤：</strong> ${data.error}`;
+        } else if (data.correct) {
+            resultDiv.className = 'spellcheck-result show result-correct';
+            let html = `<strong>✅ ${data.message}</strong>`;S
+            if (data.phonetic) {
+                html += `<div style="margin-top: 8px;"><strong>🔊 發音：</strong> ${data.phonetic}</div>`;
+            }
+            if (data.partOfSpeech) {
+                html += `<div style="margin-top: 8px;"><strong>📚 詞性：</strong> ${data.partOfSpeech}</div>`;
+            }
+            if (data.definition) {
+                html += `<div class="definition"><strong>📖 定義：</strong> ${data.definition}</div>`;
+            }
+            resultDiv.innerHTML = html;
+        } else {
+            resultDiv.className = 'spellcheck-result show result-incorrect';
+            let html = `<strong>❌ ${data.message}</strong>`;
+            if (data.suggestions && data.suggestions.length > 0) {
+                html += `<div class="suggestions-list"><strong>💡 你可能想查：</strong><ul>`;
+                data.suggestions.forEach(sug => {
+                    html += `<li>${escapeHtml(sug)}</li>`;
+                });
+                html += `</ul></div>`;
+            } else {
+                html += `<div style="margin-top: 10px;">💡 試試看：hello, world, java, python, javascript</div>`;
+            }
+            resultDiv.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('拼字檢查失敗:', error);
+        resultDiv.className = 'spellcheck-result show result-error';
+        resultDiv.innerHTML = '<strong>⚠️ 無法連線到字典服務</strong><br>請檢查網路連線後重試';
+    }
+}
+        
+        // ========== 6. 音樂播放功能 ==========
+        function initAudio() {
+            if (!playBtn) return;
+            
+            playBtn.addEventListener('click', () => {
+                if (isPlaying) {
+                    audio.pause();
+                    playBtn.innerHTML = '🎵 播放背景音樂';
+                    musicStatus.innerHTML = '⏸ 已暫停';
+                    musicStatus.style.background = '#f0f0f0';
+                    isPlaying = false;
+                } else {
+                    audio.play().then(() => {
+                        playBtn.innerHTML = '⏸ 暫停音樂';
+                        musicStatus.innerHTML = '🎵 播放中...';
+                        musicStatus.style.background = '#d4edda';
+                        isPlaying = true;
+                    }).catch(error => {
+                        console.error('播放失敗:', error);
+                        musicStatus.innerHTML = '⚠️ 播放失敗，請點擊頁面後再試';
+                        musicStatus.style.background = '#f8d7da';
+                    });
+                }
+            });
+            
+            audio.addEventListener('ended', () => {
+                playBtn.innerHTML = '🎵 播放背景音樂';
+                musicStatus.innerHTML = '⏸ 播放完畢';
+                musicStatus.style.background = '#f0f0f0';
+                isPlaying = false;
+            });
+            
+            audio.addEventListener('error', () => {
+                musicStatus.innerHTML = '❌ 音樂檔案載入失敗';
+                musicStatus.style.background = '#f8d7da';
+            });
+        }
+        
+        // ========== 7. 自動刷新功能 ==========
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            autoRefreshInterval = setInterval(() => {
+                console.log('🔄 自動刷新新聞...');
+                fetchLiveNews();
+            }, 180000);
+        }
+        
+        // ========== 8. 頁面初始化 ==========
+        async function init() {
+            console.log('🚀 頁面初始化，開始連接 Java 後端...');
+            
+            await fetchLiveNews();
+            startAutoRefresh();
+            initAudio();
+            
+            const checkBtn = document.getElementById('checkSpellingBtn');
+            const spellInput = document.getElementById('spellWord');
+            const refreshBtn = document.getElementById('manualRefreshBtn');
+            
+            if (checkBtn) {
+                checkBtn.addEventListener('click', checkSpelling);
+            }
+            
+            if (spellInput) {
+                spellInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') checkSpelling();
+                });
+            }
+            
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => {
+                    fetchLiveNews();
+                });
+            }
+            
+            const liveBadge = document.getElementById('liveBadge');
+            if (liveBadge) {
+                setInterval(() => {
+                    liveBadge.style.opacity = liveBadge.style.opacity === '0.5' ? '1' : '0.5';
+                }, 800);
+            }
+        }
+        
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
