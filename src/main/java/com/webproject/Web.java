@@ -302,46 +302,21 @@ public class Web extends HttpServlet {
                     }
                 }
             }
-            if (bestImg != null) {
-                System.out.println("    ✓ 大尺寸圖片: " + bestImg.substring(0, Math.min(80, bestImg.length())));
-                return bestImg;
-            }
-            
-            // 5. 關鍵字備用圖片
-            String fallback = getKeywordBasedImage(doc.title());
-            if (fallback != null) {
-                System.out.println("    ✓ 關鍵字備用圖片");
-                return fallback;
-            }
-            
-        } catch (Exception e) {
-            System.err.println("  圖片抓取失敗: " + e.getMessage());
+                    if (bestImg != null) {
+            System.out.println("    ✓ 大尺寸圖片: " + bestImg.substring(0, Math.min(80, bestImg.length())));
+            return bestImg;
         }
         
-        System.out.println("  使用備用圖片");
-        return getFallbackImage();
+        // 5. 關鍵字備用圖片 - 已移除，直接使用你的自訂圖片
+        
+    } catch (Exception e) {
+        System.err.println("  圖片抓取失敗: " + e.getMessage());
     }
     
-    private String getKeywordBasedImage(String title) {
-        if (title == null) return null;
-        String lowerTitle = title.toLowerCase();
-        
-        if (lowerTitle.contains("ai") || lowerTitle.contains("artificial")) {
-            return "https://picsum.photos/id/30/400/250";
-        } else if (lowerTitle.contains("microsoft") || lowerTitle.contains("windows")) {
-            return "https://picsum.photos/id/42/400/250";
-        } else if (lowerTitle.contains("github") || lowerTitle.contains("coding")) {
-            return "https://picsum.photos/id/100/400/250";
-        } else if (lowerTitle.contains("economist") || lowerTitle.contains("business")) {
-            return "https://picsum.photos/id/200/400/250";
-        } else if (lowerTitle.contains("mac") || lowerTitle.contains("apple")) {
-            return "https://picsum.photos/id/26/400/250";
-        } else if (lowerTitle.contains("space") || lowerTitle.contains("moon")) {
-            return "https://picsum.photos/id/600/400/250";
+    System.out.println("  使用自訂備用圖片");
+    return getFallbackImage();
         }
-        
-        return null;
-    }
+    
     
     private boolean isValidImage(String url) {
         if (url == null || url.isEmpty()) return false;
