@@ -54,57 +54,60 @@ public class Web extends HttpServlet {
     }
     
     private void getLiveNews(HttpServletResponse response) throws IOException {
-        Map<String, Object> result = new HashMap<>();
-        List<Map<String, String>> allNews = new ArrayList<>();
-        
-        System.out.println("開始即時爬取新聞...");
-        long startTime = System.currentTimeMillis();
-        
-        // 來源1：Hacker News
-        try {
-            List<Map<String, String>> hackerNews = crawlHackerNews();
-            allNews.addAll(hackerNews);
-            System.out.println("Hacker News 爬取完成: " + hackerNews.size() + " 則");
-            Thread.sleep(REQUEST_DELAY_MS);
-        } catch (Exception e) {
-            System.err.println("Hacker News 失敗: " + e.getMessage());
-            allNews.add(createErrorNews("Hacker News"));
-        }
-        
-        // 來源2：CNN 科技新聞
-        try {
-            List<Map<String, String>> cnnNews = crawlCNNNews();
-            allNews.addAll(cnnNews);
-            System.out.println("CNN 科技新聞爬取完成: " + cnnNews.size() + " 則");
-            Thread.sleep(REQUEST_DELAY_MS);
-        } catch (Exception e) {
-            System.err.println("CNN 失敗: " + e.getMessage());
-            allNews.add(createErrorNews("CNN Tech"));
-        }
-        
-        // 來源3：BBC 新聞
-        try {
-            List<Map<String, String>> bbcNews = crawlBBCNews();
-            allNews.addAll(bbcNews);
-            System.out.println("BBC 新聞爬取完成: " + bbcNews.size() + " 則");
-        } catch (Exception e) {
-            System.err.println("BBC 失敗: " + e.getMessage());
-            allNews.add(createErrorNews("BBC News"));
-        }
-        
-        long endTime = System.currentTimeMillis();
-        String randomComment = comments[random.nextInt(comments.length)];
-        
-        result.put("news", allNews);
-        result.put("randomComment", randomComment);
-        result.put("timestamp", new Date().toString());
-        result.put("fetchTime", (endTime - startTime) + "ms");
-        
-        PrintWriter out = response.getWriter();
-        out.print(gson.toJson(result));
-        out.flush();
-        
-        System.out.println("總共回傳: " + allNews.size() + " 則即時新聞");
+    Map<String, Object> result = new HashMap<>();
+    List<Map<String, String>> allNews = new ArrayList<>();
+    
+    System.out.println("開始即時爬取新聞...");
+    long startTime = System.currentTimeMillis();
+    
+    // 來源1：Hacker News
+    try {
+        List<Map<String, String>> hackerNews = crawlHackerNews();
+        allNews.addAll(hackerNews);
+        System.out.println("Hacker News 爬取完成: " + hackerNews.size() + " 則");
+        Thread.sleep(REQUEST_DELAY_MS);
+    } catch (Exception e) {
+        System.err.println("Hacker News 失敗: " + e.getMessage());
+        allNews.add(createErrorNews("Hacker News"));
+    }
+    
+    // 來源2：CNN 科技新聞
+    try {
+        List<Map<String, String>> cnnNews = crawlCNNNews();
+        allNews.addAll(cnnNews);
+        System.out.println("CNN 科技新聞爬取完成: " + cnnNews.size() + " 則");
+        Thread.sleep(REQUEST_DELAY_MS);
+    } catch (Exception e) {
+        System.err.println("CNN 失敗: " + e.getMessage());
+        allNews.add(createErrorNews("CNN Tech"));
+    }
+    
+    // 來源3：BBC 新聞
+    try {
+        List<Map<String, String>> bbcNews = crawlBBCNews();
+        allNews.addAll(bbcNews);
+        System.out.println("BBC 新聞爬取完成: " + bbcNews.size() + " 則");
+    } catch (Exception e) {
+        System.err.println("BBC 失敗: " + e.getMessage());
+        allNews.add(createErrorNews("BBC News"));
+    }
+    
+    // 隨機打亂新聞順序
+    Collections.shuffle(allNews);
+    
+    long endTime = System.currentTimeMillis();
+    String randomComment = comments[random.nextInt(comments.length)];
+    
+    result.put("news", allNews);
+    result.put("randomComment", randomComment);
+    result.put("timestamp", new Date().toString());
+    result.put("fetchTime", (endTime - startTime) + "ms");
+    
+    PrintWriter out = response.getWriter();
+    out.print(gson.toJson(result));
+    out.flush();
+    
+    System.out.println("總共回傳: " + allNews.size() + " 則即時新聞");
     }
     
     // ==================== 1. Hacker News 爬蟲 ====================
