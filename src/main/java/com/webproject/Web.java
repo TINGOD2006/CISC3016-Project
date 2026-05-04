@@ -25,6 +25,9 @@ public class Web extends HttpServlet {
     private Random random = new Random();
     private static final int REQUEST_DELAY_MS = 1500;
     
+    // Guardian API Key
+    private static final String GUARDIAN_API_KEY = "5bc21cfa-ec62-47ba-a575-6124bb4b5a81";
+    
     private String[] comments = {
         "🔥 即時爬取：今日科技新聞熱度持續上升！",
         "📈 最新即時資訊顯示市場反應正面！",
@@ -54,103 +57,136 @@ public class Web extends HttpServlet {
     }
     
     private void getLiveNews(HttpServletResponse response) throws IOException {
-    Map<String, Object> result = new HashMap<>();
-    List<Map<String, String>> allNews = new ArrayList<>();
-    
-    System.out.println("開始即時爬取新聞...");
-    long startTime = System.currentTimeMillis();
-    
-    // 來源1：Hacker News
-    try {
-        List<Map<String, String>> hackerNews = crawlHackerNews();
-        allNews.addAll(hackerNews);
-        System.out.println("Hacker News 爬取完成: " + hackerNews.size() + " 則");
-        Thread.sleep(REQUEST_DELAY_MS);
-    } catch (Exception e) {
-        System.err.println("Hacker News 失敗: " + e.getMessage());
-        allNews.add(createErrorNews("Hacker News"));
+        Map<String, Object> result = new HashMap<>();
+        List<Map<String, String>> allNews = new ArrayList<>();
+        
+        System.out.println("開始即時爬取新聞...");
+        long startTime = System.currentTimeMillis();
+        
+        // 來源1：The Guardian API
+        try {
+            List<Map<String, String>> guardianNews = crawlGuardianNews();
+            allNews.addAll(guardianNews);
+            System.out.println("The Guardian 爬取完成: " + guardianNews.size() + " 則");
+            Thread.sleep(REQUEST_DELAY_MS);
+        } catch (Exception e) {
+            System.err.println("The Guardian 失敗: " + e.getMessage());
+            allNews.add(createErrorNews("The Guardian"));
+        }
+        
+        // 來源2：CNN 科技新聞
+        try {
+            List<Map<String, String>> cnnNews = crawlCNNNews();
+            allNews.addAll(cnnNews);
+            System.out.println("CNN 科技新聞爬取完成: " + cnnNews.size() + " 則");
+            Thread.sleep(REQUEST_DELAY_MS);
+        } catch (Exception e) {
+            System.err.println("CNN 失敗: " + e.getMessage());
+            allNews.add(createErrorNews("CNN Tech"));
+        }
+        
+        // 來源3：BBC 新聞
+        try {
+            List<Map<String, String>> bbcNews = crawlBBCNews();
+            allNews.addAll(bbcNews);
+            System.out.println("BBC 新聞爬取完成: " + bbcNews.size() + " 則");
+        } catch (Exception e) {
+            System.err.println("BBC 失敗: " + e.getMessage());
+            allNews.add(createErrorNews("BBC News"));
+        }
+        
+        // 隨機打亂新聞順序
+        Collections.shuffle(allNews);
+        
+        long endTime = System.currentTimeMillis();
+        String randomComment = comments[random.nextInt(comments.length)];
+        
+        result.put("news", allNews);
+        result.put("randomComment", randomComment);
+        result.put("timestamp", new Date().toString());
+        result.put("fetchTime", (endTime - startTime) + "ms");
+        
+        PrintWriter out = response.getWriter();
+        out.print(gson.toJson(result));
+        out.flush();
+        
+        System.out.println("總共回傳: " + allNews.size() + " 則即時新聞（已隨機排序）");
     }
     
-    // 來源2：CNN 科技新聞
-    try {
-        List<Map<String, String>> cnnNews = crawlCNNNews();
-        allNews.addAll(cnnNews);
-        System.out.println("CNN 科技新聞爬取完成: " + cnnNews.size() + " 則");
-        Thread.sleep(REQUEST_DELAY_MS);
-    } catch (Exception e) {
-        System.err.println("CNN 失敗: " + e.getMessage());
-        allNews.add(createErrorNews("CNN Tech"));
-    }
+    // ==================== 1. The Guardian API 爬蟲 ====================
     
-    // 來源3：BBC 新聞
-    try {
-        List<Map<String, String>> bbcNews = crawlBBCNews();
-        allNews.addAll(bbcNews);
-        System.out.println("BBC 新聞爬取完成: " + bbcNews.size() + " 則");
-    } catch (Exception e) {
-        System.err.println("BBC 失敗: " + e.getMessage());
-        allNews.add(createErrorNews("BBC News"));
-    }
-    
-    // 隨機打亂新聞順序
-    Collections.shuffle(allNews);
-    
-    long endTime = System.currentTimeMillis();
-    String randomComment = comments[random.nextInt(comments.length)];
-    
-    result.put("news", allNews);
-    result.put("randomComment", randomComment);
-    result.put("timestamp", new Date().toString());
-    result.put("fetchTime", (endTime - startTime) + "ms");
-    
-    PrintWriter out = response.getWriter();
-    out.print(gson.toJson(result));
-    out.flush();
-    
-    System.out.println("總共回傳: " + allNews.size() + " 則即時新聞");
-    }
-    
-    // ==================== 1. Hacker News 爬蟲 ====================
-    
-    private List<Map<String, String>> crawlHackerNews() throws Exception {
+    private List<Map<String, String>> crawlGuardianNews() throws Exception {
         List<Map<String, String>> newsList = new ArrayList<>();
         
-        String idsJson = Jsoup.connect("https://hacker-news.firebaseio.com/v0/topstories.json")
-                .ignoreContentType(true)
-                .timeout(10000)
-                .execute()
-                .body();
+        // 爬取多個分類
+        String[] sections = {"technology", "business", "world-news", "science"};
         
-        JsonArray idsArray = JsonParser.parseString(idsJson).getAsJsonArray();
-        
-        for (int i = 0; i < idsArray.size() && newsList.size() < 5; i++) {
-            int newsId = idsArray.get(i).getAsInt();
-            String itemJson = Jsoup.connect("https://hacker-news.firebaseio.com/v0/item/" + newsId + ".json")
-                    .ignoreContentType(true)
-                    .timeout(10000)
-                    .execute()
-                    .body();
+        for (String section : sections) {
+            String apiUrl = "https://content.guardianapis.com/" + section + 
+                            "?api-key=" + GUARDIAN_API_KEY +
+                            "&show-fields=thumbnail,trailText,byline" +
+                            "&page-size=3" +
+                            "&order-by=newest";
             
-            JsonObject item = JsonParser.parseString(itemJson).getAsJsonObject();
-            String title = item.has("title") ? item.get("title").getAsString() : "無標題";
-            String link = item.has("url") ? item.get("url").getAsString() : 
-                          "https://news.ycombinator.com/item?id=" + newsId;
-            
-            String imageUrl = extractImageFromUrl(link);
-            
-            Map<String, String> news = new HashMap<>();
-            news.put("title", title);
-            news.put("source", "Hacker News 🔥");
-            news.put("link", link);
-            news.put("image", imageUrl);
-            news.put("score", item.has("score") ? item.get("score").getAsString() : "0");
-            news.put("summary", "Hacker News 熱門討論");
-            
-            newsList.add(news);
-            Thread.sleep(500);
+            try {
+                System.out.println("  呼叫 Guardian API: " + section);
+                
+                String jsonResponse = Jsoup.connect(apiUrl)
+                        .userAgent("Mozilla/5.0")
+                        .ignoreContentType(true)
+                        .timeout(10000)
+                        .execute()
+                        .body();
+                
+                JsonObject root = JsonParser.parseString(jsonResponse).getAsJsonObject();
+                JsonObject responseObj = root.getAsJsonObject("response");
+                JsonArray results = responseObj.getAsJsonArray("results");
+                
+                for (int i = 0; i < results.size() && newsList.size() < 12; i++) {
+                    JsonObject article = results.get(i).getAsJsonObject();
+                    JsonObject fields = article.has("fields") ? article.getAsJsonObject("fields") : new JsonObject();
+                    
+                    String title = article.get("webTitle").getAsString();
+                    String link = article.get("webUrl").getAsString();
+                    String sectionName = getGuardianSectionName(section);
+                    
+                    String imageUrl = fields.has("thumbnail") ? fields.get("thumbnail").getAsString() : getFallbackImage();
+                    String summary = fields.has("trailText") ? fields.get("trailText").getAsString() : "";
+                    String author = fields.has("byline") ? fields.get("byline").getAsString() : "The Guardian";
+                    
+                    Map<String, String> news = new HashMap<>();
+                    news.put("title", title);
+                    news.put("source", "The Guardian 📰 - " + sectionName);
+                    news.put("link", link);
+                    news.put("image", imageUrl);
+                    news.put("score", "🔥 熱門");
+                    news.put("summary", summary.length() > 120 ? summary.substring(0, 120) + "..." : summary);
+                    news.put("author", author);
+                    
+                    newsList.add(news);
+                    System.out.println("  Guardian: " + title.substring(0, Math.min(50, title.length())));
+                }
+                
+                Thread.sleep(500);
+                
+            } catch (Exception e) {
+                System.err.println("Guardian " + section + " 失敗: " + e.getMessage());
+            }
         }
         
         return newsList;
+    }
+    
+    private String getGuardianSectionName(String section) {
+        Map<String, String> sectionMap = new HashMap<>();
+        sectionMap.put("technology", "科技");
+        sectionMap.put("business", "商業");
+        sectionMap.put("world-news", "國際");
+        sectionMap.put("culture", "文化");
+        sectionMap.put("science", "科學");
+        sectionMap.put("sport", "體育");
+        sectionMap.put("politics", "政治");
+        return sectionMap.getOrDefault(section, section);
     }
     
     // ==================== 2. CNN 科技新聞爬蟲 ====================
@@ -166,7 +202,7 @@ public class Web extends HttpServlet {
         
         Elements items = doc.select("item");
         
-        for (int i = 0; i < items.size() && newsList.size() < 5; i++) {
+        for (int i = 0; i < items.size() && newsList.size() < 4; i++) {
             Element item = items.get(i);
             String title = item.select("title").text();
             String link = item.select("link").text();
@@ -182,7 +218,7 @@ public class Web extends HttpServlet {
             news.put("source", "CNN 科技 🌐");
             news.put("link", link);
             news.put("image", imageUrl);
-            news.put("score", "熱門");
+            news.put("score", "🔥 熱門");
             news.put("summary", description.length() > 120 ? description.substring(0, 120) + "..." : description);
             newsList.add(news);
             
@@ -205,7 +241,7 @@ public class Web extends HttpServlet {
         
         Elements items = doc.select("item");
         
-        for (int i = 0; i < items.size() && newsList.size() < 5; i++) {
+        for (int i = 0; i < items.size() && newsList.size() < 4; i++) {
             Element item = items.get(i);
             String title = item.select("title").text();
             String link = item.select("link").text();
@@ -220,6 +256,7 @@ public class Web extends HttpServlet {
             news.put("source", "BBC News 🌐");
             news.put("link", link);
             news.put("image", imageUrl);
+            news.put("score", "🔥 熱門");
             news.put("summary", description.length() > 120 ? description.substring(0, 120) + "..." : description);
             newsList.add(news);
             
@@ -241,7 +278,7 @@ public class Web extends HttpServlet {
             
             Document doc = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .timeout(10000)
+                    .timeout(8000)
                     .ignoreHttpErrors(true)
                     .get();
             
@@ -250,7 +287,7 @@ public class Web extends HttpServlet {
             if (ogImage != null) {
                 String img = ogImage.attr("content");
                 if (isValidImage(img)) {
-                    System.out.println("    ✓ OG圖片: " + img.substring(0, Math.min(80, img.length())));
+                    System.out.println("    ✓ OG圖片");
                     return img;
                 }
             }
@@ -260,7 +297,7 @@ public class Web extends HttpServlet {
             if (twitterImage != null) {
                 String img = twitterImage.attr("content");
                 if (isValidImage(img)) {
-                    System.out.println("    ✓ Twitter圖片: " + img.substring(0, Math.min(80, img.length())));
+                    System.out.println("    ✓ Twitter圖片");
                     return img;
                 }
             }
@@ -277,49 +314,19 @@ public class Web extends HttpServlet {
                     String src = img.attr("src");
                     if (isValidImage(src)) {
                         src = normalizeImageUrl(src, url);
-                        System.out.println("    ✓ 文章圖片: " + src.substring(0, Math.min(80, src.length())));
+                        System.out.println("    ✓ 文章圖片");
                         return src;
                     }
                 }
             }
             
-            // 4. 任何尺寸較大的圖片
-            Elements allImgs = doc.select("img[src]");
-            String bestImg = null;
-            int maxSize = 0;
-            for (Element img : allImgs) {
-                String src = img.attr("src");
-                if (isValidImage(src)) {
-                    src = normalizeImageUrl(src, url);
-                    int width = 0;
-                    try {
-                        width = Integer.parseInt(img.attr("width"));
-                    } catch (NumberFormatException e) {
-                        if (src.contains("large") || src.contains("1200") || src.contains("1024")) {
-                            width = 800;
-                        }
-                    }
-                    if (width > maxSize && width > 200) {
-                        maxSize = width;
-                        bestImg = src;
-                    }
-                }
-            }
-                    if (bestImg != null) {
-            System.out.println("    ✓ 大尺寸圖片: " + bestImg.substring(0, Math.min(80, bestImg.length())));
-            return bestImg;
+        } catch (Exception e) {
+            System.err.println("  圖片抓取失敗: " + e.getMessage());
         }
         
-        // 5. 關鍵字備用圖片 - 已移除，直接使用你的自訂圖片
-        
-    } catch (Exception e) {
-        System.err.println("  圖片抓取失敗: " + e.getMessage());
+        System.out.println("  使用備用圖片");
+        return getFallbackImage();
     }
-    
-    System.out.println("  使用自訂備用圖片");
-    return getFallbackImage();
-        }
-    
     
     private boolean isValidImage(String url) {
         if (url == null || url.isEmpty()) return false;
@@ -327,12 +334,10 @@ public class Web extends HttpServlet {
         if (lowerUrl.contains("logo") || lowerUrl.contains("icon") || lowerUrl.contains("avatar")) return false;
         if (lowerUrl.contains("1x1") || lowerUrl.contains("pixel") || lowerUrl.contains("blank")) return false;
         if (lowerUrl.contains("data:image")) return false;
-        if (lowerUrl.contains("spacer") || lowerUrl.contains("placeholder")) return false;
         return lowerUrl.startsWith("http") && 
                (lowerUrl.endsWith(".jpg") || lowerUrl.endsWith(".png") || 
                 lowerUrl.endsWith(".jpeg") || lowerUrl.endsWith(".webp") ||
-                lowerUrl.contains("media") || lowerUrl.contains("image") ||
-                lowerUrl.contains("storage") || lowerUrl.contains("upload"));
+                lowerUrl.contains("media") || lowerUrl.contains("image"));
     }
     
     private String normalizeImageUrl(String imgUrl, String pageUrl) {
@@ -344,7 +349,7 @@ public class Web extends HttpServlet {
                 java.net.URI uri = new java.net.URI(pageUrl);
                 return uri.getScheme() + "://" + uri.getHost() + imgUrl;
             } catch (Exception e) {
-                return "https://www.google.com" + imgUrl;
+                return imgUrl;
             }
         }
         return imgUrl;
@@ -363,7 +368,8 @@ public class Web extends HttpServlet {
     }
     
     private String getFallbackImage() {
-        return "default-image.jpg";  
+        // 使用你自訂的圖片
+        return "default-image.jpg";
     }
     
     // ==================== 拼字檢查 ====================
