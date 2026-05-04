@@ -193,7 +193,7 @@ public class Web extends HttpServlet {
     
     private List<Map<String, String>> crawlCNNNews() throws Exception {
         List<Map<String, String>> newsList = new ArrayList<>();
-        String url = "http://rss.cnn.com/rss/edition_technology.rss";
+        String url = "http://rss.cnn.com/rss/cnn_tech.rss";
         
         Document doc = Jsoup.connect(url)
                 .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
