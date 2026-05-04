@@ -336,7 +336,7 @@
     <div class="container">
         <header>
             <h1>
-                📰 即時新聞聚合器
+                CISC3016 Project 
                 <span class="badge">Guardian · CNN · BBC</span>
                 <span class="live-badge" id="liveBadge">LIVE</span>
             </h1>
@@ -383,7 +383,6 @@
     </div>
     
     <script>
-        
         let isPlaying = false;
         let isLoading = false;
         
@@ -437,32 +436,34 @@
             return '';
         }
         
-        function renderNews(newsItems) {
-            const grid = document.getElementById('newsGrid');
-            if (!newsItems || newsItems.length === 0) {
-                grid.innerHTML = '<div class="loading"><p>暫無新聞</p></div>';
-                return;
-            }
-            
-            grid.innerHTML = newsItems.map((item, idx) => `
-                <div class="news-card">
-                    <div class="image-container" data-idx="${idx}">
-                        <img src="${item.image}" class="news-image" onerror="this.src='default-image.jpg'">
-                    </div>
-                    <div class="news-content">
-                        <div class="news-meta">
-                            <span class="news-source ${getSourceClass(item.source)}">📰 ${item.source}</span>
-                            ${item.score ? `<span style="font-size:12px;">⭐ ${item.score}</span>` : ''}
-                        </div>
-                        <h3 class="news-title"><a href="${item.link}" target="_blank">${escapeHtml(item.title)}</a></h3>
-                        ${item.summary ? `<div class="news-summary">📝 ${escapeHtml(item.summary)}</div>` : ''}
-                        ${item.author ? `<div style="font-size:11px;color:#999;margin-top:8px;">✍️ ${escapeHtml(item.author)}</div>` : ''}
-                    </div>
+function renderNews(newsItems) {
+    const grid = document.getElementById('newsGrid');
+    if (!newsItems || newsItems.length === 0) {
+        grid.innerHTML = '<div class="loading"><p>暫無新聞</p></div>';
+        return;
+    }
+    
+    grid.innerHTML = newsItems.map((item, idx) => `
+        <div class="news-card">
+            <div class="image-container" data-idx="${idx}">
+                <a href="${item.link}" target="_blank" rel="noopener noreferrer" style="display: block; height: 100%;">
+                    <img src="${item.image}" class="news-image" onerror="this.src='default-image.jpg'">
+                </a>
+            </div>
+            <div class="news-content">
+                <div class="news-meta">
+                    <span class="news-source ${getSourceClass(item.source)}">📰 ${item.source}</span>
+                    ${item.score ? `<span style="font-size:12px;">⭐ ${item.score}</span>` : ''}
                 </div>
-            `).join('');
-            
-            setupImageZoom();
-        }
+                <h3 class="news-title"><a href="${item.link}" target="_blank">${escapeHtml(item.title)}</a></h3>
+                ${item.summary ? `<div class="news-summary">📝 ${escapeHtml(item.summary)}</div>` : ''}
+                ${item.author ? `<div style="font-size:11px;color:#999;margin-top:8px;">✍️ ${escapeHtml(item.author)}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+    
+    setupImageZoom();
+}
         
         function setupImageZoom() {
             document.querySelectorAll('.image-container').forEach(container => {
@@ -528,7 +529,6 @@
         
         fetchNews();
         setInterval(fetchNews, 180000);
-
     </script>
 </body>
 </html>
